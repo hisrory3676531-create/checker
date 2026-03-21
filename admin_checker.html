@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>OLD 09 | ULTIMATE ADMIN CHECKER</title>
+    <style>
+        body { background: #090a0f; color: white; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; padding: 30px; }
+        .card { background: #16212e; padding: 25px; border-radius: 12px; border: 1px solid #00d2ff; width: 450px; box-shadow: 0 0 20px rgba(0, 210, 255, 0.2); }
+        h2 { color: #00d2ff; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 25px; }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        label { display: block; margin-bottom: 5px; font-size: 0.8rem; color: #888; margin-left: 5px; }
+        input, select { width: 100%; padding: 12px; box-sizing: border-box; border-radius: 6px; border: 1px solid #2c3e50; background: #000; color: #fff; font-size: 1rem; outline: none; }
+        input:focus { border-color: #00d2ff; box-shadow: 0 0 10px rgba(0, 210, 255, 0.1); }
+        button { width: 100%; padding: 15px; background: linear-gradient(45deg, #00d2ff, #9d50bb); border: none; border-radius: 6px; color: white; font-weight: bold; cursor: pointer; text-transform: uppercase; margin-top: 10px; transition: 0.3s; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 210, 255, 0.4); }
+        
+        #result { margin-top: 20px; padding: 15px; border-radius: 6px; display: none; line-height: 1.5; font-size: 0.95rem; }
+        #log { margin-top: 20px; text-align: left; font-size: 0.8rem; color: #666; width: 100%; border-top: 1px solid #2c3e50; padding-top: 15px; }
+        
+        .success { background: rgba(46, 204, 113, 0.15); border: 1px solid #2ecc71; color: #2ecc71; }
+        .error { background: rgba(231, 76, 60, 0.15); border: 1px solid #e74c3c; color: #e74c3c; }
+        .warning { background: rgba(241, 196, 15, 0.15); border: 1px solid #f1c40f; color: #f1c40f; }
+        .danger { color: #ff4d4d; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>OLD 09 ADMIN PANEL</h2>
+        
+        <div class="input-group">
+            <label>Ник игрока</label>
+            <input type="text" id="nick" placeholder="Aleex_Proh">
+        </div>
+
+        <div class="input-group">
+            <label>Выигранная сумма</label>
+            <select id="prize">
+                <option value="600 000">600 000 $</option>
+                <option value="500 000">500 000 $</option>
+                <option value="400 000">400 000 $</option>
+                <option value="300 000">300 000 $</option>
+                <option value="200 000">200 000 $</option>
+                <option value="150 000">150 000 $</option>
+                <option value="70 000">70 000 $</option>
+                <option value="30 000">30 000 $</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label>Код со скриншота (CODE)</label>
+            <input type="text" id="userCode" placeholder="Например: 7D88FA31">
+        </div>
+
+        <button onclick="fullCheck()">ПРОВЕРИТЬ ВСЁ</button>
+        
+        <div id="result"></div>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        // --- НАСТРОЙКИ (Должны совпадать с рулеткой) ---
+        const secretKey = "OLD09_SECURE_V3"; 
+        const scriptURL = 'https://script.google.com/macros/s/AKfycbzDAkpEBQk1Z367-07ooPKlMZL0Wj72H6UiH6TZBRmZX6iVi6uXQprnWkv-E3amD2M/exec';
+
+        async function fullCheck() {
+            const nick = document.getElementById('nick').value.trim();
+            const prize = document.getElementById('prize').value;
+            const userCode = document.getElementById('userCode').value.trim().toUpperCase();
+            
+            const resultDiv = document.getElementById('result');
+            const logDiv = document.getElementById('log');
+
+            if (!nick || !userCode) {
+                alert("Заполни Ник и Код!");
+                return;
+            }
+
+            resultDiv.style.display = 'block';
+            resultDiv.className = '';
+            resultDiv.innerHTML = "<em>Ищу в базе данных...</em>";
+            logDiv.innerHTML = "<strong>Лог проверок:</strong><br>";
+
+            // 1. МАТЕМАТИЧЕСКАЯ ПРОВЕРКА КОДА
+            let str = nick + prize + secretKey;
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                hash |= 0;
+            }
+            const calculatedCode = Math.abs(hash).toString(16).toUpperCase();
+            const isCodeValid = (calculatedCode === userCode);
+
+            // 2. ПРОВЕРКА ИСТОРИИ В ТАБЛИЦЕ
+            let attempts = 0;
+            try {
+                // Добавляем ?t= для обхода кэширования
+                const response = await fetch(scriptURL + '?t=' + Date.now());
+                const rows = await response.json();
+                const today = new Date().toLocaleDateString('ru-RU');
+
+                rows.forEach((row, index) => {
+                    if (index === 0) return; // Пропускаем шапку таблицы
+
+                    let rowNick = row[0].toString().toLowerCase();
+                    
+                    // Обработка даты из Google Таблицы
+                    let rowDateRaw = row[1];
+                    let rowDateFormatted = "";
+                    
+                    if (rowDateRaw) {
+                        // Пытаемся привести к формату ДД.ММ.ГГГГ
+                        const d = new Date(rowDateRaw);
+                        if (!isNaN(d.getTime())) {
+                            rowDateFormatted = d.toLocaleDateString('ru-RU');
+                        } else {
+                            rowDateFormatted = rowDateRaw.toString().trim();
+                        }
+                    }
+
+                    if (rowNick === nick.toLowerCase()) {
+                        logDiv.innerHTML += `Найдено: ${rowDateFormatted} | Статус: ${row[2]}<br>`;
+                        if (rowDateFormatted === today) {
+                            attempts++;
+                        }
+                    }
+                });
+
+            } catch (e) {
+                console.error(e);
+                logDiv.innerHTML += `<span class="danger">Ошибка связи с Google Таблицей!</span>`;
+            }
+
+            // 3. ИТОГОВЫЙ ВЫВОД
+            if (!isCodeValid) {
+                resultDiv.className = 'error';
+                resultDiv.innerHTML = `❌ <strong>ФЕЙК!</strong><br>Математический код не совпадает. Скриншот подделан (или опечатка в нике/сумме).<br><small>Должен быть: ${calculatedCode}</small>`;
+            } else {
+                if (attempts > 1) {
+                    resultDiv.className = 'warning';
+                    resultDiv.innerHTML = `⚠️ <strong>ЕСТЬ ВОПРОСЫ...</strong><br>Код верный, но игрок крутил рулетку <span class="danger">${attempts} раз(а)</span> сегодня. Это попытка обмана через чистку кэша!`;
+                } else if (attempts === 0) {
+                    resultDiv.className = 'warning';
+                    resultDiv.innerHTML = `❓ <strong>СТРАННО...</strong><br>Код верный, но в базе данных <b>0 записей</b> для этого ника за сегодня. Возможно, база еще не обновилась.`;
+                } else {
+                    resultDiv.className = 'success';
+                    resultDiv.innerHTML = `✅ <strong>ВСЁ ЧИСТО!</strong><br>Код верный. Запись в базе найдена (1 попытка). Можно выдавать приз!`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
