@@ -59,13 +59,13 @@
     </div>
 
     <script>
-        // --- НАСТРОЙКИ (Должны совпадать с рулеткой) ---
+        // --- НАСТРОЙКИ (Должны СТРОГО совпадать с рулеткой) ---
         const secretKey = "OLD09_SECURE_V3"; 
         const scriptURL = 'https://script.google.com/macros/s/AKfycbxQE9PqG2T5OB5OOSM8TB-1eYOzuQCk29TGCiLmIhPH6ga1ScKdAHaoBV-cyRoW9aBb/exec';
 
         async function fullCheck() {
             const nick = document.getElementById('nick').value.trim();
-            const prize = document.getElementById('prize').value;
+            const prize = document.getElementById('prize').value; // Здесь "150 000"
             const userCode = document.getElementById('userCode').value.trim().toUpperCase();
             
             const resultDiv = document.getElementById('result');
@@ -81,8 +81,13 @@
             resultDiv.innerHTML = "<em>Ищу в базе данных...</em>";
             logDiv.innerHTML = "<strong>Лог проверок:</strong><br>";
 
-            // 1. МАТЕМАТИЧЕСКАЯ ПРОВЕРКА КОДА
-            let str = nick + prize + secretKey;
+            // --- 1. СИНХРОНИЗИРОВАННАЯ МАТЕМАТИЧЕСКАЯ ПРОВЕРКА ---
+            // Получаем дату точно в таком же формате, как в рулетке
+            const today = new Date().toLocaleDateString('ru-RU');
+            
+            // Формула теперь идентична рулетке: Ник + Сумма + Дата + Ключ
+            let str = nick + prize + today + secretKey;
+            
             let hash = 0;
             for (let i = 0; i < str.length; i++) {
                 hash = ((hash << 5) - hash) + str.charCodeAt(i);
@@ -91,25 +96,22 @@
             const calculatedCode = Math.abs(hash).toString(16).toUpperCase();
             const isCodeValid = (calculatedCode === userCode);
 
-            // 2. ПРОВЕРКА ИСТОРИИ В ТАБЛИЦЕ
+            // --- 2. ПРОВЕРКА ИСТОРИИ В ТАБЛИЦЕ ---
             let attempts = 0;
             try {
-                // Добавляем ?t= для обхода кэширования
                 const response = await fetch(scriptURL + '?t=' + Date.now());
                 const rows = await response.json();
-                const today = new Date().toLocaleDateString('ru-RU');
 
                 rows.forEach((row, index) => {
-                    if (index === 0) return; // Пропускаем шапку таблицы
+                    if (index === 0) return; 
 
-                    let rowNick = row[0].toString().toLowerCase();
+                    let rowNick = row[0] ? row[0].toString().toLowerCase() : "";
                     
-                    // Обработка даты из Google Таблицы
+                    // Обработка даты из таблицы
                     let rowDateRaw = row[1];
                     let rowDateFormatted = "";
                     
                     if (rowDateRaw) {
-                        // Пытаемся привести к формату ДД.ММ.ГГГГ
                         const d = new Date(rowDateRaw);
                         if (!isNaN(d.getTime())) {
                             rowDateFormatted = d.toLocaleDateString('ru-RU');
@@ -119,6 +121,7 @@
                     }
 
                     if (rowNick === nick.toLowerCase()) {
+                        // Показываем статус (что выпало) из 3-й колонки
                         logDiv.innerHTML += `Найдено: ${rowDateFormatted} | Статус: ${row[2]}<br>`;
                         if (rowDateFormatted === today) {
                             attempts++;
@@ -131,20 +134,20 @@
                 logDiv.innerHTML += `<span class="danger">Ошибка связи с Google Таблицей!</span>`;
             }
 
-            // 3. ИТОГОВЫЙ ВЫВОД
+            // --- 3. ИТОГОВЫЙ ВЫВОД ---
             if (!isCodeValid) {
                 resultDiv.className = 'error';
-                resultDiv.innerHTML = `❌ <strong>ФЕЙК!</strong><br>Математический код не совпадает. Скриншот подделан (или опечатка в нике/сумме).<br><small>Должен быть: ${calculatedCode}</small>`;
+                resultDiv.innerHTML = `❌ <strong>ФЕЙК!</strong><br>Код не совпадает.<br>Чекер ожидал дату: <b>${today}</b><br><small>Должен быть: ${calculatedCode}</small>`;
             } else {
                 if (attempts > 1) {
                     resultDiv.className = 'warning';
-                    resultDiv.innerHTML = `⚠️ <strong>ЕСТЬ ВОПРОСЫ...</strong><br>Код верный, но игрок крутил рулетку <span class="danger">${attempts} раз(а)</span> сегодня. Это попытка обмана через чистку кэша!`;
+                    resultDiv.innerHTML = `⚠️ <strong>ЕСТЬ ВОПРОСЫ...</strong><br>Код верный, но игрок крутил рулетку <span class="danger">${attempts} раз(а)</span> сегодня!`;
                 } else if (attempts === 0) {
                     resultDiv.className = 'warning';
-                    resultDiv.innerHTML = `❓ <strong>СТРАННО...</strong><br>Код верный, но в базе данных <b>0 записей</b> для этого ника за сегодня. Возможно, база еще не обновилась.`;
+                    resultDiv.innerHTML = `❓ <strong>СТРАННО...</strong><br>Код верный, но в таблице нет записи за сегодня. Либо таблица тормозит, либо рулетка не отправила данные.`;
                 } else {
                     resultDiv.className = 'success';
-                    resultDiv.innerHTML = `✅ <strong>ВСЁ ЧИСТО!</strong><br>Код верный. Запись в базе найдена (1 попытка). Можно выдавать приз!`;
+                    resultDiv.innerHTML = `✅ <strong>ВСЁ ЧИСТО!</strong><br>Код верный. Запись в базе найдена. Можно выдавать приз!`;
                 }
             }
         }
